@@ -5,6 +5,7 @@ from method.configuration import Configuration
 from method.errors import ResourceError
 from method.resources.Verification import VerificationResource
 from method.resources.AccountSync import AccountSyncResource, AccountSync
+from method.resources.Element import ConnectProductsLiterals
 
 
 # Literals, keep ordered alphabetically
@@ -133,6 +134,23 @@ AccountPayoffStatusesLiterals = Literal[
     'pending',
     'failed'
 ]
+
+
+AccountSubscriptionTypesLiterals = Literal[
+    'transactions'
+]
+
+
+AccountVerificationSessionCheckLiterals = Literal[
+    'pass',
+    'fail'
+]
+
+
+AccountExpandableFieldsLiterals = Literal[
+    'latest_verification_session'
+]
+
 
 class AccountACH(TypedDict):
     routing: int
@@ -373,7 +391,41 @@ class AccountClearingCreateOpts(AccountCreateOpts):
     clearing: ClearingCreateOpts
 
 
-class Account(TypedDict):
+class AccountVerificationSessionType(TypedDict):
+    network: Optional[str]
+    issuer: Optional[str]
+    last4: Optional[str]
+    exp_year: Optional[str]
+    exp_month: Optional[str]
+    exp_check: Optional[str]
+    cvv: Optional[str]
+    cvv_check: Optional[str]
+    billing_zip_code: Optional[str]
+    billing_zip_code_check: Optional[str]
+    number: Optional[str]
+    charge_check: Optional[str]
+    pre_auth_check: Optional[str]
+    updater_status: Optional[str]
+
+
+class AccountVerificationSessionThreeDS(AccountVerificationSessionType):
+    pass
+
+class AccountVerificationSessionIssuer(AccountVerificationSessionType):
+    pass
+
+
+class AccountVerificationSession(TypedDict):
+    id: str
+    status: str
+    status_error: Optional[str]
+    type: str
+    three_ds: Optional[AccountVerificationSessionThreeDS]
+    created_at: str
+    updated_at: str
+
+
+class AccountBase(TypedDict):
     id: str
     holder_id: str
     status: AccountStatusesLiterals
@@ -383,10 +435,23 @@ class Account(TypedDict):
     clearing: Optional[AccountClearing]
     capabilities: List[AccountCapabilitiesLiterals]
     available_capabilities: List[AccountCapabilitiesLiterals]
+    products: List[ConnectProductsLiterals];
+    restricted_products: List[ConnectProductsLiterals];
+    subscriptions: List[AccountSubscriptionTypesLiterals];
+    available_subscriptions: List[AccountSubscriptionTypesLiterals];
+    restricted_subscriptions: List[AccountSubscriptionTypesLiterals];
     error: Optional[ResourceError]
     created_at: str
     updated_at: str
     metadata: Optional[Dict[str, Any]]
+
+
+class Account(AccountBase):
+    latest_verification_session: str
+
+
+class AccountExpanded(AccountBase):
+    latest_verification_session: AccountVerificationSession
 
 
 class AccountDetail(TypedDict):
@@ -412,7 +477,8 @@ AccountListOpts = TypedDict('AccountListOpts', {
     'type': Optional[str],
     'holder_id': Optional[str],
     'liability.mch_id': Optional[str],
-    'liability.type': Optional[str]
+    'liability.type': Optional[str],
+    'expand': Optional[List[AccountExpandableFieldsLiterals]]
 })
 
 
@@ -490,6 +556,48 @@ class AccountPayoff(TypedDict):
     updated_at: str
 
 
+class AccountVerificationTypeUpdateOpts(TypedDict):
+    cvv: Optional[str]
+    exp_year: Optional[str]
+    exp_month: Optional[str]
+    billing_zip_code: Optional[str]
+    number: Optional[str]
+
+
+class AccountThreeDSUpdateOpts(AccountVerificationTypeUpdateOpts):
+    pass
+
+
+class AccountIssuerUpdateOpts(AccountVerificationTypeUpdateOpts):
+    pass
+
+
+class AccountVerificationSessionUpdateOpts(TypedDict):
+    three_ds: Optional[AccountThreeDSUpdateOpts]
+    issuer: Optional[AccountIssuerUpdateOpts]
+
+
+class AccountSubscription(TypedDict):
+    id: str
+    name: AccountSubscriptionTypesLiterals
+    status: str
+    latest_transaction_id: str
+    created_at: str
+    updated_at: str
+
+
+class AccountTransactions(TypedDict):
+    subscription: AccountSubscription
+
+
+class AccountSubscribeResponse(TypedDict):
+    transactions: Optional[AccountTransactions]
+
+
+class AccountSubscriptionCreateOpts(TypedDict):
+    enroll: List[AccountSubscriptionTypesLiterals]
+
+
 class AccountSubResources:
     verification: VerificationResource
     sync: AccountSyncResource
@@ -497,6 +605,7 @@ class AccountSubResources:
     def __init__(self, _id: str, config: Configuration):
         self.verification = VerificationResource(config.add_path(_id))
         self.syncs = AccountSyncResource(config.add_path(_id))
+
 
 class AccountResource(Resource):
     def __init__(self, config: Configuration):
@@ -549,3 +658,12 @@ class AccountResource(Resource):
     
     def create_payoff(self, _id: str) -> AccountPayoff:
         return super(AccountResource, self)._create_with_sub_path('{_id}/payoffs'.format(_id=_id), {})
+    
+    def update_verification(self, _id: str, ver_id: str, opts: AccountVerificationSessionUpdateOpts) -> AccountVerificationSession:
+        return super(AccountResource, self)._update_with_sub_path('{_id}/verification_session/{ver_id}'.format(_id=_id, ver_id=ver_id), opts)
+    
+    def create_subscription(self, _id: str, opts: AccountSubscriptionCreateOpts) -> AccountTransactions:
+        return super(AccountResource, self).create_with_sub_path('{_id}/subscriptions'.format(_id=_id), opts)
+    
+    def get_last_verification_status_field(self, holder_id: str) -> AccountExpanded:
+        return super(AccountResource, self)._get_with_params({ 'holder_id': holder_id, 'liability.type': 'credit_card', 'expand': ['latest_verification_sesion'] })

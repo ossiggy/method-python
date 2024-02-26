@@ -3,10 +3,39 @@ from typing import TypedDict, Optional, Literal, List, Dict
 from method.resource import Resource
 from method.configuration import Configuration
 from method.resources.Account import Account
-
+from method.resources.Entity import EntityIndividual
 
 ElementTypesLiterals = Literal[
-    'link'
+    'link',
+    'auth',
+    'connect'
+]
+
+AuthElementAccountFilterTypesLiterals = Literal[
+    'auto_loan',
+    'mortgage',
+    'credit_card',
+    'loan',
+    'student_loan',
+    'personal_loan'
+]
+
+
+AuthElementAccountFilterCapabilitiesLiterals = Literal[
+    'payments:receive',
+    'data:sync'
+]
+
+
+AuthElementAccountFilterSelectionTypeLiterals = Literal[
+    'single',
+    'multiple'
+]
+
+
+ConnectProductsLiterals = Literal[
+    'transactions',
+    'payoffs'
 ]
 
 
@@ -54,11 +83,39 @@ class LinkElementLinkCreateOpts(TypedDict):
     mask: Optional[str]
 
 
+class AuthElementAccountFiltersOpts(TypedDict):
+    selection_type: Optional[AuthElementAccountFilterSelectionTypeLiterals]
+    capabilities: Optional[AuthElementAccountFilterCapabilitiesLiterals]
+    types: Optional[AuthElementAccountFilterTypesLiterals]
+
+
+class AuthElementIndividualEntityOpts(EntityIndividual):
+        phone_verification_type: Literal['sms', 'tos'];
+        phone_verification_timestamp: Optional[str]
+
+class AuthElementEntityOpts(TypedDict):
+    type: Literal['individual']
+    individual: AuthElementIndividualEntityOpts
+
+
+class AuthElementCreateOpts(TypedDict):
+    account_filters: Optional[AuthElementAccountFiltersOpts]
+    entity: Optional[AuthElementEntityOpts]
+
+
+class ConnectElementCreateOpts(TypedDict):
+    products: Optional[List[ConnectProductsLiterals]]
+    entity: Optional[AuthElementEntityOpts]
+    accounts: List[str]
+
+
 class ElementTokenCreateOpts(TypedDict):
     entity_id: str
     type: ElementTypesLiterals
     team_name: Optional[str]
     link: Optional[LinkElementLinkCreateOpts]
+    auth: Optional[AuthElementCreateOpts]
+    connect: Optional[ConnectElementCreateOpts]
 
 
 class Element(TypedDict):
